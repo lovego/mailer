@@ -1,67 +1,103 @@
 package mailer
 
 import (
-	"crypto/tls"
-	"net"
+	"fmt"
+	"mime"
 	"net/mail"
 	"net/smtp"
+	"net/textproto"
 	"net/url"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/lovego/email"
+	"github.com/lovego/xiaomei/utils"
+	"io"
 )
 
 type Mailer struct {
-	client *smtp.Client
-	sender string
+	Sender   *mail.Address
+	Pool     *email.Pool
+	poolSize int
 }
 
 func New(mailerUrl string) (*Mailer, error) {
-	uri, err := url.Parse(mailerUrl)
+	mailer, err := url.Parse(mailerUrl)
 	if err != nil {
 		return nil, err
 	}
-	if opener, err := getOpener(uri); err != nil {
+	query := mailer.Query()
+
+	poolSize := 10
+	if size := query.Get(`poolSize`); size != `` {
+		if sizeInt, err := strconv.Atoi(size); err != nil {
+			return nil, err
+		} else if sizeInt > 0 {
+			poolSize = sizeInt
+		}
+	}
+
+	sender, err := mail.ParseAddress(query.Get(`user`))
+	if err != nil {
 		return nil, err
+	}
+
+	pool := email.NewPool(
+		mailer.Host, poolSize,
+		smtp.PlainAuth(``, sender.Address, query.Get(`pass`), mailer.Hostname()),
+	)
+
+	return &Mailer{sender, pool, poolSize}, nil
+}
+
+func (m *Mailer) Send(e *email.Email, timeout time.Duration) (err error) {
+	if m == nil || e == nil || len(e.To) == 0 {
+		return nil
+	}
+	if e.From == `` && m.Sender != nil {
+		e.From = m.Sender.String()
+	}
+	setupAddrsHeaders(e)
+
+	// 如果是io.EOF错误,可能是由于pool连接被关闭造成, 重试
+	for i := 0; i < m.poolSize; i++ {
+		err = m.Pool.Send(e, timeout)
+		if err == nil || err != io.EOF {
+			return
+		}
+	}
+	return
+}
+
+func setupAddrsHeaders(e *email.Email) {
+	if e.Headers == nil {
+		e.Headers = make(textproto.MIMEHeader)
+	}
+	if len(e.From) > 0 {
+		e.Headers.Set(`From`, quoteAddr(e.From))
+	}
+	if len(e.To) > 0 {
+		e.Headers.Set(`To`, makeAddrsHeader(e.To))
+	}
+	if len(e.Cc) > 0 {
+		e.Headers.Set(`Cc`, makeAddrsHeader(e.Cc))
+	}
+}
+
+func makeAddrsHeader(addrs []string) string {
+	var result []string
+	for _, addr := range addrs {
+		result = append(result, quoteAddr(addr))
+	}
+	return strings.Join(result, `, `)
+}
+
+func quoteAddr(addr string) string {
+	if address, err := mail.ParseAddress(addr); err != nil {
+		utils.Log(err)
+		return ``
 	} else {
-		return opener()
+		return fmt.Sprintf(`%s <%s>`, mime.QEncoding.Encode(`UTF-8`, address.Name), address.Address)
 	}
-}
-
-func getOpener(uri *url.URL) (func() (*Mailer, error), error) {
-	q := uri.Query()
-	user, err := mail.ParseAddress(q.Get(`user`))
-	if err != nil {
-		return nil, err
-	}
-	auth := smtp.PlainAuth(``, user.Address, q.Get(`pass`), uri.Hostname())
-
-	return func() (*Mailer, error) {
-		if client, err := Open(uri.Host, auth); err != nil {
-			return nil, err
-		} else {
-			return &Mailer{client: client, sender: user.String()}, nil
-		}
-	}, nil
-}
-
-func Open(addr string, auth smtp.Auth) (*smtp.Client, error) {
-	client, err := smtp.Dial(addr)
-	if err != nil {
-		return nil, err
-	}
-	if ok, _ := client.Extension("STARTTLS"); ok {
-		host, _, err := net.SplitHostPort(addr)
-		if err != nil {
-			return nil, err
-		}
-		if err = client.StartTLS(&tls.Config{ServerName: host}); err != nil {
-			return nil, err
-		}
-	}
-	if auth != nil {
-		if ok, _ := client.Extension("AUTH"); ok {
-			if err = client.Auth(auth); err != nil {
-				return nil, err
-			}
-		}
-	}
-	return client, nil
 }
