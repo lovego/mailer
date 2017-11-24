@@ -2,6 +2,8 @@ package mailer
 
 import (
 	"fmt"
+	"io"
+	"log"
 	"mime"
 	"net/mail"
 	"net/smtp"
@@ -12,8 +14,6 @@ import (
 	"time"
 
 	"github.com/lovego/email"
-	"github.com/lovego/xiaomei/utils"
-	"io"
 )
 
 type Mailer struct {
@@ -95,7 +95,7 @@ func makeAddrsHeader(addrs []string) string {
 
 func quoteAddr(addr string) string {
 	if address, err := mail.ParseAddress(addr); err != nil {
-		utils.Log(err)
+		log.Println(err)
 		return ``
 	} else {
 		return fmt.Sprintf(`%s <%s>`, mime.QEncoding.Encode(`UTF-8`, address.Name), address.Address)
