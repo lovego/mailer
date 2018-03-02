@@ -16,8 +16,7 @@ func TestSend(t *testing.T) {
 	}
 
 	e := &email.Email{
-		To: []string{"侯志良<houzhiliang@retail-tek.com>",
-			"侯志良<applejava@qq.com>", "侯志良<bughou@gmail.com>"},
+		To:      []string{"侯志良<applejava@qq.com>", "侯志良<bughou@gmail.com>"},
 		Subject: "测试",
 		Text: []byte(`
 		<b>超文本!</b>
