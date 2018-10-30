@@ -16,9 +16,10 @@ func TestSend(t *testing.T) {
 	}
 
 	e := &email.Email{
-		To:      []string{"侯志良<applejava@qq.com>", "侯志良<bughou@gmail.com>"},
-		Subject: "测试",
+		To:      []string{"张绍兴<shaoxing.zhang@hztl3.com>", "侯志良<bughou@gmail.com>"},
+		Subject: "一个非常非常非常非常非常非常非常非常非常非常非常非常非常非常非常非常非常非常非常非常非常长的标题",
 		Text: []byte(`
+        sql: Scan error on column index 17: can't convert =04Q3PA=00=00 to decimal
 		<b>超文本!</b>
 		a very very very very very very very very very very very very very very very very very very very very long line.
 `),
