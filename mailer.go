@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"mime"
 	"net/mail"
 	"net/smtp"
 	"net/textproto"
@@ -98,6 +97,6 @@ func quoteAddr(addr string) string {
 		log.Println(err)
 		return ``
 	} else {
-		return fmt.Sprintf(`%s <%s>`, mime.QEncoding.Encode(`UTF-8`, address.Name), address.Address)
+		return fmt.Sprintf(`%s <%s>`, email.BEncode(address.Name), address.Address)
 	}
 }
